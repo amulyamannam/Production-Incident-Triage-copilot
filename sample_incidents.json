@@ -1,0 +1,46 @@
+[
+  {
+    "id": "INC-0042",
+    "title": "checkout-api latency spike and ECS restart loop",
+    "component": "ecs",
+    "severity": "SEV2",
+    "signals": ["latency", "restart", "healthcheck-fail"],
+    "summary": "p99 latency on checkout-api rose from ~80ms to over 4s over 12 minutes, with ECS tasks restarting repeatedly. On-call rolled back the most recent deploy first; latency did not improve. Root cause was eventually traced to RDS connection pool exhaustion caused by a separate batch job holding long-lived connections.",
+    "resolution": "Killed the long-lived batch job connections, added a query timeout to the batch job, added a CloudWatch alarm on DatabaseConnections approaching max_connections.",
+    "lesson": "A rollback was tried first and did not help, because the cause was a shared downstream dependency, not the deployed code. Check downstream dependency saturation before rolling back.",
+    "related_runbook": "RB-014"
+  },
+  {
+    "id": "INC-0036",
+    "title": "Planned RDS Multi-AZ failover mistaken for outage",
+    "component": "rds",
+    "severity": "SEV3",
+    "signals": ["latency", "failover"],
+    "summary": "A 90-second connection error burst coincided with an RDS maintenance-window failover. The on-call engineer paged the secondary on-call before checking the RDS event history, which showed the failover was planned maintenance.",
+    "resolution": "No action needed beyond confirming application reconnect behavior was correct.",
+    "lesson": "Check RDS event history for planned maintenance failovers before escalating further.",
+    "related_runbook": "RB-007"
+  },
+  {
+    "id": "INC-0051",
+    "title": "Fleet-wide EKS node disk pressure after log shipper regression",
+    "component": "eks",
+    "severity": "SEV2",
+    "signals": ["node-not-ready", "disk-pressure"],
+    "summary": "A log-shipper DaemonSet update stopped rotating logs correctly. Multiple nodes across the cluster hit DiskPressure within a few hours of each other, causing cascading pod evictions.",
+    "resolution": "Rolled back the log-shipper DaemonSet to the previous version, manually cleared accumulated logs from affected nodes, added a disk-usage alarm at the node level.",
+    "lesson": "When DiskPressure hits more than one node in a short window, suspect a fleet-wide configuration change rather than a single noisy workload.",
+    "related_runbook": "RB-022"
+  },
+  {
+    "id": "INC-0029",
+    "title": "Public API outage from expired imported TLS certificate",
+    "component": "networking",
+    "severity": "SEV1",
+    "signals": ["cert-expiry", "tls"],
+    "summary": "An imported (non-ACM-managed) certificate on a public ALB listener expired without warning, causing TLS handshake failures for all clients. No expiry alarm existed for imported certificates.",
+    "resolution": "Issued an emergency replacement certificate, migrated to an ACM DNS-validated certificate going forward, added a DaysToExpiry alarm.",
+    "lesson": "Imported certificates do not auto-renew. They need their own expiry alarm; assuming ACM handles all certificates uniformly was the root mistake.",
+    "related_runbook": "RB-031"
+  }
+]
